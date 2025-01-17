@@ -30,6 +30,7 @@ void runProgram() {
 
     // Editor loop
     while(running) {
+        handleInput(hStdIn);
         writeTextToScreen(screenBuffer, screenSize.X, screenSize.Y, textBuffer, textSize);
 
         drawScreen(screenBuffer, screenSize.X, screenSize.Y);
@@ -110,11 +111,6 @@ void initScreen(char** screenBuffer, COORD screenSize) {
         fprintf(stderr, "Failed to allocate memory for screen buffer\n");
         exit(1); // Handle allocation failure
     }
-
-    // Debug Output
-    //printf("Screen initialized successfully");
-
-    //free(screenBuffer); // temp
 }
 
 COORD getScreenSize() {
@@ -186,5 +182,40 @@ void drawScreen(char* screenBuffer, int screenWidth, int screenHeight) {
         if ((i + 1) % screenWidth == 0) {
             printf("\n");
         }
+    }
+}
+
+void handleInput(HANDLE hConsole) {
+    DWORD cNumRead, i;
+    INPUT_RECORD irInBuf[128];
+
+    if (!ReadConsoleInput(hConsole, irInBuf, 128, &cNumRead)) {
+        fprintf(stderr, "ReadConsoleInput Error\n");
+        exit(1);
+    }
+
+    for (i = 0; i < cNumRead; i++) {
+        switch(irInBuf[i].EventType) {
+            case KEY_EVENT:
+                handleKeyEvent(irInBuf[i].Event.KeyEvent);
+                break;
+
+            default:
+                fprintf(stderr, "Unknown event type");
+        }
+    }
+}
+
+/*
+    todo:
+    inserting keys to textbuffer 
+    handle special characters 
+*/
+void handleKeyEvent(KEY_EVENT_RECORD keyEventRec) {
+    printf("Key event: ");
+    if (keyEventRec.bKeyDown) {
+        printf("key pressed\n");
+    } else {
+        printf("key released\n");
     }
 }

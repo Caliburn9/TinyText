@@ -25,4 +25,8 @@ void writeTextToScreen(char* screenBuffer, int screenWidth, int screenHeight, ch
 
 void drawScreen(char* screenBuffer, int screenWidth, int screenHeight);
 
+void handleInput(HANDLE hConsole);
+
+void handleKeyEvent(KEY_EVENT_RECORD keyEventRec);
+
 #endif
