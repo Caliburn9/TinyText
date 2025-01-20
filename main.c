@@ -6,7 +6,5 @@
 int main() {
     runProgram();
 
-    exitProgram();
-
     return 0;
 }

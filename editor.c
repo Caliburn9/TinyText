@@ -3,6 +3,8 @@
 
 #include "editor.h"
 
+int running = 1;
+
 void runProgram() {
     HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
     HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
@@ -12,39 +14,47 @@ void runProgram() {
     COORD screenSize = getScreenSize();
     int textSize = 128; // temp
 
-    int running = 1;
-
     clearScreen(hStdOut);
+    resizeCursor(hStdOut, 100);
 
     initScreen(&screenBuffer, screenSize);
-
     initTextBuffer(&textBuffer, textSize);
 
     // Enable raw mode
     enableRawMode(hStdIn);
 
     // debug for testing output
-    for (int i = 0; i < textSize; i++) {
+    for (int i = 0; i < 5; i++) {
         textBuffer[i] = 'a';
     }
 
-    // Editor loop
-    while(running) {
-        handleInput(hStdIn);
-        writeTextToScreen(screenBuffer, screenSize.X, screenSize.Y, textBuffer, textSize);
+    int* foundIndices, numFound;
 
-        drawScreen(screenBuffer, screenSize.X, screenSize.Y);
+    // Editor loop
+    while (running) {
+        handleInput(hStdIn);
+        foundIndices = findUpdatedIndices(screenBuffer, screenSize.X, screenSize.Y, textBuffer, textSize, &numFound);
+        if (foundIndices == NULL) {
+            fprintf(stderr, "Failed to allocate memory for found indices buffer in running loop\n");
+            exit(1);
+        }
+        if (numFound != 0) {
+            updateScreenBuffer(screenBuffer, textBuffer, foundIndices, numFound);
+        }
+        drawScreen(hStdOut, screenBuffer, screenSize.X, screenSize.Y);
     }
 
+    free(foundIndices);
     free(screenBuffer);
     free(textBuffer);
+    exit(0);
 }
 
-void exitProgram() {
+void stopProgram() {
     HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
-
     // Exit raw mode
     exitRawMode(hStdIn);
+    running = 0;
 }
 
 void enableRawMode(HANDLE hConsole) {
@@ -111,6 +121,10 @@ void initScreen(char** screenBuffer, COORD screenSize) {
         fprintf(stderr, "Failed to allocate memory for screen buffer\n");
         exit(1); // Handle allocation failure
     }
+
+    for (int i = 0; i < screenSize.X * screenSize.Y; i++) {
+        (*screenBuffer)[i] = ' ';
+    }
 }
 
 COORD getScreenSize() {
@@ -134,6 +148,10 @@ void initTextBuffer(char** textBuffer, int textSize) {
         fprintf(stderr, "Failed to allocate memory for text buffer\n");
         exit(1); // Handle allocation failure
     }
+
+    for (int i = 0; i < textSize; i++) {
+        (*textBuffer)[i] = '\0';
+    }
 }
 
 unsigned int getscreenWidth() {
@@ -152,37 +170,62 @@ unsigned int getscreenHeight() {
     return 0;
 }
 
+int* findUpdatedIndices(char* screenBuffer, int screenWidth, int screenHeight, char* textBuffer, int textBufferLen, int* numFound) {
+    int screenBufferLen = screenWidth * screenHeight; 
+    int currentCapacity = 128;
+    int* temp;
+    *numFound = 0;
+    int limit = (screenBufferLen < textBufferLen) ? screenBufferLen : textBufferLen;
+    int* found = malloc(currentCapacity * sizeof(int));
+    if (found == NULL) {
+        fprintf(stderr, "Failed to allocate memory for found indices buffer\n");
+        exit(1);
+    }
+
+    for (int i = 0; i < limit; i++) {
+        if (screenBuffer[i] != textBuffer[i]) {
+            if ((*numFound) >= currentCapacity) {
+                currentCapacity *= 2;
+                temp = realloc(found, currentCapacity * sizeof(int));
+                if (temp == NULL) {
+                    free(found);
+                    fprintf(stderr, "Failed to re-allocate memory for found indices buffer\n");
+                    exit(1);
+                }
+                found = temp;   
+            }
+            found[(*numFound)] = i;
+            (*numFound)++;
+        }
+    }  
+
+    return found;
+}
+
 /*
     issues:
     doesnt account for text wrapping
 */
-void writeTextToScreen(char* screenBuffer, int screenWidth, int screenHeight, char* textBuffer, int textBufferLen) {
-    int screenBufferLen = screenWidth * screenHeight;
-
-    for (int i = 0; i < screenBufferLen; i++) {
-        if (i < textBufferLen) {
-            screenBuffer[i] = textBuffer[i];
-        } else {
-            screenBuffer[i] = ' ';
-        }
+void updateScreenBuffer(char* screenBuffer, char* textBuffer, int* foundIndices, int numFound) {
+    for (int i = 0; i < numFound; i++) {
+        screenBuffer[foundIndices[i]] = textBuffer[foundIndices[i]];
     } 
 }
 
 /*
     issues: 
-    redraws ENTIRE screen, focus on refreshing only updated parts
-    suffers from output flickering
-    no cursor handling
+    no cursor handling 
 */
-void drawScreen(char* screenBuffer, int screenWidth, int screenHeight) {
+void drawScreen(HANDLE hConsole, char* screenBuffer, int screenWidth, int screenHeight) {
     int screenBufferLen = screenWidth * screenHeight;
 
-    for (int i = 0; i < screenBufferLen; i++) {
-        printf("%c", screenBuffer[i]);
-        if ((i + 1) % screenWidth == 0) {
-            printf("\n");
-        }
-    }
+    clearScreen(hConsole);
+
+    COORD cursorPos = { 0, 0 };
+    SetConsoleCursorPosition(hConsole, cursorPos);
+
+    DWORD charsWritten;
+    WriteConsoleOutputCharacter(hConsole, screenBuffer, screenBufferLen, cursorPos, &charsWritten);
 }
 
 void handleInput(HANDLE hConsole) {
@@ -212,10 +255,87 @@ void handleInput(HANDLE hConsole) {
     handle special characters 
 */
 void handleKeyEvent(KEY_EVENT_RECORD keyEventRec) {
-    printf("Key event: ");
-    if (keyEventRec.bKeyDown) {
-        printf("key pressed\n");
-    } else {
-        printf("key released\n");
+    // Handle Control Key chords
+    if (keyEventRec.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
+        // Quit
+        if (keyEventRec.wVirtualKeyCode == 'Q' || keyEventRec.wVirtualKeyCode == 'q') {
+            stopProgram();
+        }
+        // Save file
+
+        // Load file
+
+        // Copy selection
+
+        // Paste selection
+
+        // Undo
+
+        // Redo
+        
+    }
+    // Handle character ASCII keys
+    else if (keyEventRec.uChar.AsciiChar > 32 && keyEventRec.uChar.AsciiChar <= 126) {
+        char keyChar = keyEventRec.uChar.AsciiChar;
+    }
+    // Handle special keys
+    else {
+        switch (keyEventRec.wVirtualKeyCode)
+        {
+        case VK_BACK:
+            /* code */
+            break;
+        
+        case VK_RETURN:
+            /* code */
+            break;
+
+        case VK_CAPITAL:
+            /* code */
+            break;
+
+        case VK_ESCAPE:
+            /* code */
+            break;
+
+        case VK_SPACE:
+            /* code */
+            break;
+
+        case VK_LEFT:
+            /* code */
+            break;
+        
+        case VK_UP:
+            /* code */
+            break;
+
+        case VK_DOWN:
+            /* code */
+            break;
+
+        case VK_RIGHT:
+            /* code */
+            break;
+
+        default:
+            fprintf(stderr, "Unknown Virtual Key Code");
+            break;
+        }
     }
 }
+
+void resizeCursor(HANDLE hConsole, DWORD size) {
+    CONSOLE_CURSOR_INFO ci;
+    if (GetConsoleCursorInfo(hConsole, &ci)) {
+        ci.bVisible = TRUE;
+        ci.dwSize = size;
+        SetConsoleCursorInfo(hConsole, &ci);
+    } else {
+        fprintf(stderr, "Failed to retrieve cursor info. Unable to resize cursor to: %d", size);
+    }
+}
+
+// void insertCharacterToTextBuffer() {
+
+// }

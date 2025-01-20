@@ -3,7 +3,7 @@
 
 void runProgram();
 
-void exitProgram();
+void stopProgram();
 
 void enableRawMode(HANDLE hConsole);
 
@@ -21,12 +21,16 @@ unsigned int getscreenWidth();
 
 unsigned int getscreenHeight();
 
-void writeTextToScreen(char* screenBuffer, int screenWidth, int screenHeight, char* textBuffer, int textBufferLen);
+int* findUpdatedIndices(char* screenBuffer, int screenWidth, int screenHeight, char* textBuffer, int textBufferLen, int* numFound); 
 
-void drawScreen(char* screenBuffer, int screenWidth, int screenHeight);
+void updateScreenBuffer(char* screenBuffer, char* textBuffer, int* foundIndices, int numFound);
+
+void drawScreen(HANDLE hConsole, char* screenBuffer, int screenWidth, int screenHeight);
 
 void handleInput(HANDLE hConsole);
 
 void handleKeyEvent(KEY_EVENT_RECORD keyEventRec);
+
+void resizeCursor(HANDLE hConsole, DWORD size);
 
 #endif
