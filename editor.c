@@ -3,58 +3,59 @@
 
 #include "editor.h"
 
-int running = 1;
-
 void runProgram() {
+    editorState e;
+
     HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
     HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
 
-    char* screenBuffer = NULL;
-    char* textBuffer = NULL;
-    COORD screenSize = getScreenSize();
-    int textSize = 128; // temp
+    e.screenBuffer = NULL;
+    e.textBuffer = NULL;
+    e.screenSize = getScreenSize();
+    e.textSize = 128; // temp
+    e.isRunning = 1;
 
     clearScreen(hStdOut);
     resizeCursor(hStdOut, 100);
 
-    initScreen(&screenBuffer, screenSize);
-    initTextBuffer(&textBuffer, textSize);
+    initScreen(&e);
+    initTextBuffer(&e);
 
     // Enable raw mode
     enableRawMode(hStdIn);
 
     // debug for testing output
     for (int i = 0; i < 5; i++) {
-        textBuffer[i] = 'a';
+        e.textBuffer[i] = 'a';
     }
 
     int* foundIndices, numFound;
 
     // Editor loop
-    while (running) {
-        handleInput(hStdIn);
-        foundIndices = findUpdatedIndices(screenBuffer, screenSize.X, screenSize.Y, textBuffer, textSize, &numFound);
+    while (e.isRunning) {
+        handleInput(hStdIn, &e);
+        foundIndices = findUpdatedIndices(&e, &numFound);
         if (foundIndices == NULL) {
             fprintf(stderr, "Failed to allocate memory for found indices buffer in running loop\n");
             exit(1);
         }
         if (numFound != 0) {
-            updateScreenBuffer(screenBuffer, textBuffer, foundIndices, numFound);
+            updateScreenBuffer(&e, foundIndices, numFound);
         }
-        drawScreen(hStdOut, screenBuffer, screenSize.X, screenSize.Y);
+        drawScreen(hStdOut, &e);
     }
 
     free(foundIndices);
-    free(screenBuffer);
-    free(textBuffer);
+    free(e.screenBuffer);
+    free(e.textBuffer);
     exit(0);
 }
 
-void stopProgram() {
+void stopProgram(editorState* state) {
     HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
     // Exit raw mode
     exitRawMode(hStdIn);
-    running = 0;
+    state->isRunning = 0;
 }
 
 void enableRawMode(HANDLE hConsole) {
@@ -115,15 +116,15 @@ void clearScreen(HANDLE hConsole) {
     SetConsoleCursorPosition(hConsole, coordScreen);
 }
 
-void initScreen(char** screenBuffer, COORD screenSize) {
-    *screenBuffer = (char*)malloc(screenSize.X * screenSize.Y * sizeof(char));
-    if (*screenBuffer == NULL) {
+void initScreen(editorState* state) {
+    state->screenBuffer = (char*)malloc(state->screenSize.X * state->screenSize.Y * sizeof(char));
+    if (state->screenBuffer == NULL) {
         fprintf(stderr, "Failed to allocate memory for screen buffer\n");
         exit(1); // Handle allocation failure
     }
 
-    for (int i = 0; i < screenSize.X * screenSize.Y; i++) {
-        (*screenBuffer)[i] = ' ';
+    for (int i = 0; i < state->screenSize.X * state->screenSize.Y; i++) {
+        (state->screenBuffer)[i] = ' ';
     }
 }
 
@@ -142,15 +143,15 @@ COORD getScreenSize() {
     return screenSize;
 }
 
-void initTextBuffer(char** textBuffer, int textSize) {
-    *textBuffer = (char*)malloc(textSize * sizeof(char));
-    if (*textBuffer == NULL) {
+void initTextBuffer(editorState* state) {
+    state->textBuffer = (char*)malloc(state->textSize * sizeof(char));
+    if (state->textBuffer == NULL) {
         fprintf(stderr, "Failed to allocate memory for text buffer\n");
         exit(1); // Handle allocation failure
     }
 
-    for (int i = 0; i < textSize; i++) {
-        (*textBuffer)[i] = '\0';
+    for (int i = 0; i < state->textSize; i++) {
+        (state->textBuffer)[i] = '\0';
     }
 }
 
@@ -170,12 +171,12 @@ unsigned int getscreenHeight() {
     return 0;
 }
 
-int* findUpdatedIndices(char* screenBuffer, int screenWidth, int screenHeight, char* textBuffer, int textBufferLen, int* numFound) {
-    int screenBufferLen = screenWidth * screenHeight; 
+int* findUpdatedIndices(editorState* state, int* numFound) {
+    int screenBufferLen = state->screenSize.X * state->screenSize.Y; 
     int currentCapacity = 128;
     int* temp;
     *numFound = 0;
-    int limit = (screenBufferLen < textBufferLen) ? screenBufferLen : textBufferLen;
+    int limit = (screenBufferLen < state->textSize) ? screenBufferLen : state->textSize;
     int* found = malloc(currentCapacity * sizeof(int));
     if (found == NULL) {
         fprintf(stderr, "Failed to allocate memory for found indices buffer\n");
@@ -183,7 +184,7 @@ int* findUpdatedIndices(char* screenBuffer, int screenWidth, int screenHeight, c
     }
 
     for (int i = 0; i < limit; i++) {
-        if (screenBuffer[i] != textBuffer[i]) {
+        if (state->screenBuffer[i] != state->textBuffer[i]) {
             if ((*numFound) >= currentCapacity) {
                 currentCapacity *= 2;
                 temp = realloc(found, currentCapacity * sizeof(int));
@@ -206,9 +207,9 @@ int* findUpdatedIndices(char* screenBuffer, int screenWidth, int screenHeight, c
     issues:
     doesnt account for text wrapping
 */
-void updateScreenBuffer(char* screenBuffer, char* textBuffer, int* foundIndices, int numFound) {
+void updateScreenBuffer(editorState* state, int* foundIndices, int numFound) {
     for (int i = 0; i < numFound; i++) {
-        screenBuffer[foundIndices[i]] = textBuffer[foundIndices[i]];
+        state->screenBuffer[foundIndices[i]] = state->textBuffer[foundIndices[i]];
     } 
 }
 
@@ -216,8 +217,8 @@ void updateScreenBuffer(char* screenBuffer, char* textBuffer, int* foundIndices,
     issues: 
     no cursor handling 
 */
-void drawScreen(HANDLE hConsole, char* screenBuffer, int screenWidth, int screenHeight) {
-    int screenBufferLen = screenWidth * screenHeight;
+void drawScreen(HANDLE hConsole, editorState* state) {
+    int screenBufferLen = state->screenSize.X * state->screenSize.Y;
 
     clearScreen(hConsole);
 
@@ -225,10 +226,10 @@ void drawScreen(HANDLE hConsole, char* screenBuffer, int screenWidth, int screen
     SetConsoleCursorPosition(hConsole, cursorPos);
 
     DWORD charsWritten;
-    WriteConsoleOutputCharacter(hConsole, screenBuffer, screenBufferLen, cursorPos, &charsWritten);
+    WriteConsoleOutputCharacter(hConsole, state->screenBuffer, screenBufferLen, cursorPos, &charsWritten);
 }
 
-void handleInput(HANDLE hConsole) {
+void handleInput(HANDLE hConsole, editorState* state) {
     DWORD cNumRead, i;
     INPUT_RECORD irInBuf[128];
 
@@ -240,7 +241,7 @@ void handleInput(HANDLE hConsole) {
     for (i = 0; i < cNumRead; i++) {
         switch(irInBuf[i].EventType) {
             case KEY_EVENT:
-                handleKeyEvent(irInBuf[i].Event.KeyEvent);
+                handleKeyEvent(irInBuf[i].Event.KeyEvent, state);
                 break;
 
             default:
@@ -254,12 +255,12 @@ void handleInput(HANDLE hConsole) {
     inserting keys to textbuffer 
     handle special characters 
 */
-void handleKeyEvent(KEY_EVENT_RECORD keyEventRec) {
+void handleKeyEvent(KEY_EVENT_RECORD keyEventRec, editorState* state) {
     // Handle Control Key chords
     if (keyEventRec.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
         // Quit
         if (keyEventRec.wVirtualKeyCode == 'Q' || keyEventRec.wVirtualKeyCode == 'q') {
-            stopProgram();
+            stopProgram(state);
         }
         // Save file
 
@@ -336,6 +337,6 @@ void resizeCursor(HANDLE hConsole, DWORD size) {
     }
 }
 
-// void insertCharacterToTextBuffer() {
+// void insertCharacterToTextBuffer(char* textBuffer, int textBufferLen, COORD cursorPos) {
 
 // }
