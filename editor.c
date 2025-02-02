@@ -7,7 +7,7 @@ void runProgram() {
     editorState e;
     HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
     HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
-    int* foundIndices, numFound, seconds = 1;
+    int* foundIndices, numFound;
 
     enableRawMode(hStdIn);
     initEditorState(&e);
@@ -16,10 +16,10 @@ void runProgram() {
     initTextBuffer(&e);
 
     // debug for testing output
-    for (int i = 0; i < 10; i++) {
-        e.textBuffer[i] = 'a';
-        e.textLength++;
-    }
+    // for (int i = 0; i < 10; i++) {
+    //     e.textBuffer[i] = 'a';
+    //     e.textLength++;
+    // }
 
     // Editor loop
     while (e.isRunning) {
@@ -289,7 +289,7 @@ void handleKeyEvent(KEY_EVENT_RECORD keyEventRec, editorState* state) {
             switch (keyEventRec.wVirtualKeyCode)
             {
             case VK_BACK:
-                /* code */
+                removeCharacterFromTextBuffer(state);
                 break;
             
             case VK_RETURN:
@@ -306,6 +306,10 @@ void handleKeyEvent(KEY_EVENT_RECORD keyEventRec, editorState* state) {
 
             case VK_SPACE:
                 insertCharacterToTextBuffer(state, ' ');
+                break;
+
+            case VK_TAB:
+                /* code */
                 break;
 
             case VK_LEFT:
@@ -343,6 +347,16 @@ void resizeCursor(HANDLE hConsole, DWORD size) {
     }
 }
 
+void* resizeBuffer(void* buffer, size_t* currentSize, size_t elementSize, editorState* state) {
+    *currentSize *= 2;
+    void *temp = realloc(buffer, *currentSize * elementSize);
+    if (temp == NULL) {
+        fprintf(stderr, "Failed to re-allocate memory for buffer\n");
+        stopProgram(state);
+    }
+    return temp;
+}
+
 void insertCharacterToTextBuffer(editorState* state, char c) {
     int lineWidth = state->screenSize.X;
     int index = state->textPosition.Y * lineWidth + state->textPosition.X;
@@ -372,12 +386,27 @@ void insertCharacterToTextBuffer(editorState* state, char c) {
     state->cursorPosition = state->textPosition;
 }
 
-void* resizeBuffer(void* buffer, size_t* currentSize, size_t elementSize, editorState* state) {
-    *currentSize *= 2;
-    void *temp = realloc(buffer, *currentSize * elementSize);
-    if (temp == NULL) {
-        fprintf(stderr, "Failed to re-allocate memory for buffer\n");
-        stopProgram(state);
+void removeCharacterFromTextBuffer(editorState* state) {
+    if (state->textLength == 0 || (state->cursorPosition.X == 0 && state->cursorPosition.Y == 0)) {
+        return;
     }
-    return temp;
+
+    int lineWidth = state->screenSize.X;
+    int index = state->textPosition.Y * lineWidth + state->textPosition.X;
+
+    for (int i = index; i < state->textLength; i++) {
+        state->textBuffer[i] = state->textBuffer[i + 1];
+    }
+
+    state->textLength--;
+    state->textBuffer[state->textLength] = '\0';
+    
+    if (state->textPosition.X > 0) {
+        state->textPosition.X--;
+    } else {
+        state->textPosition.Y--;
+        state->textPosition.X = lineWidth - 1;
+    }
+
+    state->cursorPosition = state->textPosition;
 }

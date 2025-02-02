@@ -49,8 +49,10 @@ void handleKeyEvent(KEY_EVENT_RECORD keyEventRec, editorState* state) ;
 
 void resizeCursor(HANDLE hConsole, DWORD size);
 
+void* resizeBuffer(void* buffer, size_t* currentSize, size_t elementSize, editorState* state);
+
 void insertCharacterToTextBuffer(editorState* state, char c);
 
-void* resizeBuffer(void* buffer, size_t* currentSize, size_t elementSize, editorState* state);
+void removeCharacterFromTextBuffer(editorState* state);
 
 #endif
