@@ -394,12 +394,14 @@ void removeCharacterFromTextBuffer(editorState* state) {
     int lineWidth = state->screenSize.X;
     int index = state->textPosition.Y * lineWidth + state->textPosition.X;
 
-    for (int i = index; i < state->textLength; i++) {
-        state->textBuffer[i] = state->textBuffer[i + 1];
-    }
+    if (index > 0 && index < state->textLength) {
+        for (int i = index; i < state->textLength; i++) {
+            state->textBuffer[i] = state->textBuffer[i + 1];
+        }
 
-    state->textLength--;
-    state->textBuffer[state->textLength] = '\0';
+        state->textLength--;
+        state->textBuffer[state->textLength] = '\0';
+    }
     
     if (state->textPosition.X > 0) {
         state->textPosition.X--;
