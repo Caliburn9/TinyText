@@ -2,19 +2,22 @@
 #define EDITOR_H
 
 typedef struct editorState {
-    char* screenBuffer;
-    char* textBuffer;
+    char* screenBuffer; // data written to screen
+    char* textBuffer; // actual data 
     
-    COORD screenSize;
-    int textSize;
+    COORD screenSize; // width and height of screen buffer
+    size_t textSize; // size of text buffer
+    int textLength; // total number of characters in the text buffer
 
-    COORD cursorPosition;
-    COORD textPosition;
+    COORD cursorPosition; // cursor position in the screen buffer
+    COORD textPosition; // cursor position in the text buffer
     
-    int isRunning;
+    int isRunning; // 1 if program is running, 0 if not
 } editorState;
 
 void runProgram();
+
+void initEditorState(editorState* state);
 
 void stopProgram(editorState* state);
 
@@ -24,7 +27,7 @@ void exitRawMode(HANDLE hConsole);
 
 void clearScreen(HANDLE hConsole);
 
-void initScreen(editorState* state);
+void initScreen(HANDLE hConsole, editorState* state);
 
 COORD getScreenSize();
 
@@ -45,5 +48,9 @@ void handleInput(HANDLE hConsole, editorState* state);
 void handleKeyEvent(KEY_EVENT_RECORD keyEventRec, editorState* state) ;
 
 void resizeCursor(HANDLE hConsole, DWORD size);
+
+void insertCharacterToTextBuffer(editorState* state, char c);
+
+void* resizeBuffer(void* buffer, size_t* currentSize, size_t elementSize, editorState* state);
 
 #endif

@@ -5,31 +5,21 @@
 
 void runProgram() {
     editorState e;
-
     HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
     HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+    int* foundIndices, numFound, seconds = 1;
 
-    e.screenBuffer = NULL;
-    e.textBuffer = NULL;
-    e.screenSize = getScreenSize();
-    e.textSize = 128; // temp
-    e.isRunning = 1;
-
-    clearScreen(hStdOut);
+    enableRawMode(hStdIn);
+    initEditorState(&e);
     resizeCursor(hStdOut, 100);
-
-    initScreen(&e);
+    initScreen(hStdOut, &e);
     initTextBuffer(&e);
 
-    // Enable raw mode
-    enableRawMode(hStdIn);
-
     // debug for testing output
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 10; i++) {
         e.textBuffer[i] = 'a';
+        e.textLength++;
     }
-
-    int* foundIndices, numFound;
 
     // Editor loop
     while (e.isRunning) {
@@ -37,7 +27,7 @@ void runProgram() {
         foundIndices = findUpdatedIndices(&e, &numFound);
         if (foundIndices == NULL) {
             fprintf(stderr, "Failed to allocate memory for found indices buffer in running loop\n");
-            exit(1);
+            stopProgram(&e);
         }
         if (numFound != 0) {
             updateScreenBuffer(&e, foundIndices, numFound);
@@ -49,6 +39,23 @@ void runProgram() {
     free(e.screenBuffer);
     free(e.textBuffer);
     exit(0);
+}
+
+void initEditorState(editorState* state) {
+    state->screenBuffer = NULL;
+    state->textBuffer = NULL;
+
+    state->screenSize = getScreenSize();
+    state->textSize = 128; // temp
+    state->textLength = 0;
+
+    state->cursorPosition.X = 0;
+    state->cursorPosition.Y = 0;
+
+    state->textPosition.X = 0;
+    state->textPosition.Y = 0;
+
+    state->isRunning = 1;
 }
 
 void stopProgram(editorState* state) {
@@ -116,16 +123,20 @@ void clearScreen(HANDLE hConsole) {
     SetConsoleCursorPosition(hConsole, coordScreen);
 }
 
-void initScreen(editorState* state) {
+void initScreen(HANDLE hConsole, editorState* state) {
+    clearScreen(hConsole);
+
     state->screenBuffer = (char*)malloc(state->screenSize.X * state->screenSize.Y * sizeof(char));
     if (state->screenBuffer == NULL) {
         fprintf(stderr, "Failed to allocate memory for screen buffer\n");
-        exit(1); // Handle allocation failure
+        stopProgram(state);
     }
 
     for (int i = 0; i < state->screenSize.X * state->screenSize.Y; i++) {
         (state->screenBuffer)[i] = ' ';
     }
+
+    SetConsoleCursorPosition(hConsole, state->cursorPosition);
 }
 
 COORD getScreenSize() {
@@ -147,7 +158,7 @@ void initTextBuffer(editorState* state) {
     state->textBuffer = (char*)malloc(state->textSize * sizeof(char));
     if (state->textBuffer == NULL) {
         fprintf(stderr, "Failed to allocate memory for text buffer\n");
-        exit(1); // Handle allocation failure
+        stopProgram(state);
     }
 
     for (int i = 0; i < state->textSize; i++) {
@@ -173,27 +184,19 @@ unsigned int getscreenHeight() {
 
 int* findUpdatedIndices(editorState* state, int* numFound) {
     int screenBufferLen = state->screenSize.X * state->screenSize.Y; 
-    int currentCapacity = 128;
-    int* temp;
+    size_t currentCapacity = 128;
     *numFound = 0;
     int limit = (screenBufferLen < state->textSize) ? screenBufferLen : state->textSize;
     int* found = malloc(currentCapacity * sizeof(int));
     if (found == NULL) {
         fprintf(stderr, "Failed to allocate memory for found indices buffer\n");
-        exit(1);
+        stopProgram(state);
     }
 
     for (int i = 0; i < limit; i++) {
         if (state->screenBuffer[i] != state->textBuffer[i]) {
             if ((*numFound) >= currentCapacity) {
-                currentCapacity *= 2;
-                temp = realloc(found, currentCapacity * sizeof(int));
-                if (temp == NULL) {
-                    free(found);
-                    fprintf(stderr, "Failed to re-allocate memory for found indices buffer\n");
-                    exit(1);
-                }
-                found = temp;   
+                found = (int*)resizeBuffer(found, &currentCapacity, sizeof(int), state);
             }
             found[(*numFound)] = i;
             (*numFound)++;
@@ -213,10 +216,6 @@ void updateScreenBuffer(editorState* state, int* foundIndices, int numFound) {
     } 
 }
 
-/*
-    issues: 
-    no cursor handling 
-*/
 void drawScreen(HANDLE hConsole, editorState* state) {
     int screenBufferLen = state->screenSize.X * state->screenSize.Y;
 
@@ -227,6 +226,8 @@ void drawScreen(HANDLE hConsole, editorState* state) {
 
     DWORD charsWritten;
     WriteConsoleOutputCharacter(hConsole, state->screenBuffer, screenBufferLen, cursorPos, &charsWritten);
+
+    SetConsoleCursorPosition(hConsole, state->cursorPosition);
 }
 
 void handleInput(HANDLE hConsole, editorState* state) {
@@ -235,7 +236,7 @@ void handleInput(HANDLE hConsole, editorState* state) {
 
     if (!ReadConsoleInput(hConsole, irInBuf, 128, &cNumRead)) {
         fprintf(stderr, "ReadConsoleInput Error\n");
-        exit(1);
+        stopProgram(state);
     }
 
     for (i = 0; i < cNumRead; i++) {
@@ -250,78 +251,83 @@ void handleInput(HANDLE hConsole, editorState* state) {
     }
 }
 
-/*
-    todo:
-    inserting keys to textbuffer 
-    handle special characters 
-*/
 void handleKeyEvent(KEY_EVENT_RECORD keyEventRec, editorState* state) {
-    // Handle Control Key chords
-    if (keyEventRec.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
-        // Quit
-        if (keyEventRec.wVirtualKeyCode == 'Q' || keyEventRec.wVirtualKeyCode == 'q') {
-            stopProgram(state);
+    if (keyEventRec.bKeyDown) {
+         // Handle Control Key chords
+        if (keyEventRec.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
+            // Quit
+            if (keyEventRec.wVirtualKeyCode == 'Q' || keyEventRec.wVirtualKeyCode == 'q') {
+                stopProgram(state);
+            }
+            // Save file
+
+            // Load file
+
+            // Copy selection
+
+            // Paste selection
+
+            // Undo
+
+            // Redo
+            
         }
-        // Save file
+        // Handle Shift Key Chords
+        else if (keyEventRec.dwControlKeyState == SHIFT_PRESSED) {
+            // Capitalize lowercase characters
 
-        // Load file
+            // Highlight selection using arrow keys
+            
+        }
+        // Handle character ASCII keys
+        else if (keyEventRec.uChar.AsciiChar > 32 && keyEventRec.uChar.AsciiChar <= 126) {
+            char keyChar = keyEventRec.uChar.AsciiChar;
+            insertCharacterToTextBuffer(state, keyChar);
+        }
+        // Handle special keys
+        else {
+            switch (keyEventRec.wVirtualKeyCode)
+            {
+            case VK_BACK:
+                /* code */
+                break;
+            
+            case VK_RETURN:
+                insertCharacterToTextBuffer(state, '\n');
+                break;
 
-        // Copy selection
+            case VK_CAPITAL:
+                /* code */
+                break;
 
-        // Paste selection
+            case VK_ESCAPE:
+                /* code */
+                break;
 
-        // Undo
+            case VK_SPACE:
+                insertCharacterToTextBuffer(state, ' ');
+                break;
 
-        // Redo
-        
-    }
-    // Handle character ASCII keys
-    else if (keyEventRec.uChar.AsciiChar > 32 && keyEventRec.uChar.AsciiChar <= 126) {
-        char keyChar = keyEventRec.uChar.AsciiChar;
-    }
-    // Handle special keys
-    else {
-        switch (keyEventRec.wVirtualKeyCode)
-        {
-        case VK_BACK:
-            /* code */
-            break;
-        
-        case VK_RETURN:
-            /* code */
-            break;
+            case VK_LEFT:
+                /* code */
+                break;
+            
+            case VK_UP:
+                /* code */
+                break;
 
-        case VK_CAPITAL:
-            /* code */
-            break;
+            case VK_DOWN:
+                /* code */
+                break;
 
-        case VK_ESCAPE:
-            /* code */
-            break;
+            case VK_RIGHT:
+                /* code */
+                break;
 
-        case VK_SPACE:
-            /* code */
-            break;
-
-        case VK_LEFT:
-            /* code */
-            break;
-        
-        case VK_UP:
-            /* code */
-            break;
-
-        case VK_DOWN:
-            /* code */
-            break;
-
-        case VK_RIGHT:
-            /* code */
-            break;
-
-        default:
-            fprintf(stderr, "Unknown Virtual Key Code");
-            break;
+            default:
+                fprintf(stderr, "Unknown Virtual Key Code");
+                break;
+            }
         }
     }
 }
@@ -337,6 +343,41 @@ void resizeCursor(HANDLE hConsole, DWORD size) {
     }
 }
 
-// void insertCharacterToTextBuffer(char* textBuffer, int textBufferLen, COORD cursorPos) {
+void insertCharacterToTextBuffer(editorState* state, char c) {
+    int lineWidth = state->screenSize.X;
+    int index = state->textPosition.Y * lineWidth + state->textPosition.X;
 
-// }
+    if (state->textLength + 1 >= state->textSize) {
+        state->textBuffer = (char*)resizeBuffer(state->textBuffer, &state->textSize, sizeof(char), state);
+    }
+
+    if (c == '\n') {
+        state->textPosition.X = 0;
+        state->textPosition.Y++;
+    } else {
+        for (int i = state->textLength; i > index; i--) {
+            state->textBuffer[i] = state->textBuffer[i - 1];
+        }
+
+        state->textBuffer[index] = c;
+        state->textLength++;
+        state->textPosition.X++;
+    
+        if (state->textPosition.X >= lineWidth) {
+            state->textPosition.X = 0;
+            state->textPosition.Y++;
+        }
+    }
+    
+    state->cursorPosition = state->textPosition;
+}
+
+void* resizeBuffer(void* buffer, size_t* currentSize, size_t elementSize, editorState* state) {
+    *currentSize *= 2;
+    void *temp = realloc(buffer, *currentSize * elementSize);
+    if (temp == NULL) {
+        fprintf(stderr, "Failed to re-allocate memory for buffer\n");
+        stopProgram(state);
+    }
+    return temp;
+}
