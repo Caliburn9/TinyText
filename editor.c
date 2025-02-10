@@ -15,12 +15,6 @@ void runProgram() {
     initScreen(hStdOut, &e);
     initTextBuffer(&e);
 
-    // debug for testing output
-    // for (int i = 0; i < 10; i++) {
-    //     e.textBuffer[i] = 'a';
-    //     e.textLength++;
-    // }
-
     // Editor loop
     while (e.isRunning) {
         handleInput(hStdIn, &e);
@@ -133,7 +127,7 @@ void initScreen(HANDLE hConsole, editorState* state) {
     }
 
     for (int i = 0; i < state->screenSize.X * state->screenSize.Y; i++) {
-        (state->screenBuffer)[i] = ' ';
+        (state->screenBuffer)[i] = '\0';
     }
 
     SetConsoleCursorPosition(hConsole, state->cursorPosition);
@@ -256,7 +250,7 @@ void handleKeyEvent(KEY_EVENT_RECORD keyEventRec, editorState* state) {
          // Handle Control Key chords
         if (keyEventRec.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
             // Quit
-            if (keyEventRec.wVirtualKeyCode == 'Q' || keyEventRec.wVirtualKeyCode == 'q') {
+            if (keyEventRec.wVirtualKeyCode == 'W' || keyEventRec.wVirtualKeyCode == 'w') {
                 stopProgram(state);
             }
             // Save file
@@ -294,10 +288,6 @@ void handleKeyEvent(KEY_EVENT_RECORD keyEventRec, editorState* state) {
             
             case VK_RETURN:
                 insertCharacterToTextBuffer(state, '\n');
-                break;
-
-            case VK_CAPITAL:
-                /* code */
                 break;
 
             case VK_ESCAPE:
@@ -366,6 +356,7 @@ void insertCharacterToTextBuffer(editorState* state, char c) {
     }
 
     if (c == '\n') {
+        state->textLength += lineWidth - state->textPosition.X;
         state->textPosition.X = 0;
         state->textPosition.Y++;
     } else {
