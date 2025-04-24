@@ -49,6 +49,14 @@ void initEditorState(editorState* state) {
     state->textPosition.X = 0;
     state->textPosition.Y = 0;
 
+    state->linePositions = (int*)malloc(state->screenSize.Y * sizeof(int));
+    if (state->linePositions == NULL) {
+        fprintf(stderr, "Failed to allocate memory for buffer\n");
+        stopProgram(state);
+    } else {
+        memset(state->linePositions, 0, state->screenSize.Y * sizeof(int));
+    }
+
     state->isRunning = 1;
 }
 
@@ -351,12 +359,13 @@ void insertCharacterToTextBuffer(editorState* state, char c) {
     int lineWidth = state->screenSize.X;
     int index = state->textPosition.Y * lineWidth + state->textPosition.X;
 
-    if (state->textLength + 1 >= state->textSize) {
+    if (state->textLength + 1 >= state->textSize || index + 1 >= state->textSize) {
         state->textBuffer = (char*)resizeBuffer(state->textBuffer, &state->textSize, sizeof(char), state);
     }
 
     if (c == '\n') {
-        state->textLength += lineWidth - state->textPosition.X;
+        state->textLength++;
+        state->linePositions[state->textPosition.Y] = state->textPosition.X;
         state->textPosition.X = 0;
         state->textPosition.Y++;
     } else {
@@ -369,6 +378,7 @@ void insertCharacterToTextBuffer(editorState* state, char c) {
         state->textPosition.X++;
     
         if (state->textPosition.X >= lineWidth) {
+            state->linePositions[state->textPosition.Y] = state->textPosition.X;
             state->textPosition.X = 0;
             state->textPosition.Y++;
         }
@@ -384,22 +394,37 @@ void removeCharacterFromTextBuffer(editorState* state) {
 
     int lineWidth = state->screenSize.X;
     int index = state->textPosition.Y * lineWidth + state->textPosition.X;
+    int totalLength = getTotalTextBufferLength(state);
 
-    if (index > 0 && index < state->textLength) {
-        for (int i = index; i < state->textLength; i++) {
-            state->textBuffer[i] = state->textBuffer[i + 1];
-        }
-
-        state->textLength--;
-        state->textBuffer[state->textLength] = '\0';
+    for (int i = index; i < totalLength; i++) {
+        state->textBuffer[i] = state->textBuffer[i + 1];
     }
+
+    state->textLength--;
+    state->textBuffer[state->textLength] = '\0';
     
     if (state->textPosition.X > 0) {
         state->textPosition.X--;
     } else {
         state->textPosition.Y--;
-        state->textPosition.X = lineWidth - 1;
+        state->textPosition.X = state->linePositions[state->textPosition.Y];
     }
 
     state->cursorPosition = state->textPosition;
+}
+
+int getTotalTextBufferLength(editorState* state) {
+    int length = 0;
+    int lineWidth = state->screenSize.X;
+
+    // Traverse textBuffer up to the cursor's position
+    for (int y = 0; y < state->textPosition.Y; y++) {
+        // Count full lines
+        length += lineWidth;
+    }
+
+    // Add characters from the current line (up to cursor X position)
+    length += state->textPosition.X;
+
+    return length;
 }

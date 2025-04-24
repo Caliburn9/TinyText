@@ -11,6 +11,7 @@ typedef struct editorState {
 
     COORD cursorPosition; // cursor position in the screen buffer
     COORD textPosition; // cursor position in the text buffer
+    int* linePositions; // cursor position in each line
     
     int isRunning; // 1 if program is running, 0 if not
 } editorState;
@@ -54,5 +55,7 @@ void* resizeBuffer(void* buffer, size_t* currentSize, size_t elementSize, editor
 void insertCharacterToTextBuffer(editorState* state, char c);
 
 void removeCharacterFromTextBuffer(editorState* state);
+
+int getTotalTextBufferLength(editorState* state);
 
 #endif

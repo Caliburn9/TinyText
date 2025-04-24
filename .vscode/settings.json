@@ -3,5 +3,6 @@
         "editor.h": "c",
         "windows.h": "c",
         "limits": "c"
-    }
+    },
+    "C_Cpp.default.compilerPath": "C:/MinGW/bin/gcc.exe"
 }
