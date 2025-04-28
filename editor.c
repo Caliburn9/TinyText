@@ -347,11 +347,14 @@ void resizeCursor(HANDLE hConsole, DWORD size) {
 
 void* resizeBuffer(void* buffer, size_t* currentSize, size_t elementSize, editorState* state) {
     *currentSize *= 2;
+    size_t oldSize = *currentSize / 2;
     void *temp = realloc(buffer, *currentSize * elementSize);
     if (temp == NULL) {
         fprintf(stderr, "Failed to re-allocate memory for buffer\n");
         stopProgram(state);
     }
+    // Zero out new memory
+    memset(temp + (oldSize * elementSize), 0, (oldSize * elementSize));
     return temp;
 }
 
