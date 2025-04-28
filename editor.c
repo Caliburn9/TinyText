@@ -397,9 +397,8 @@ void removeCharacterFromTextBuffer(editorState* state) {
 
     int lineWidth = state->screenSize.X;
     int index = state->textPosition.Y * lineWidth + state->textPosition.X;
-    int totalLength = getTotalTextBufferLength(state);
 
-    for (int i = index; i < totalLength; i++) {
+    for (int i = index; i < state->textLength; i++) {
         state->textBuffer[i] = state->textBuffer[i + 1];
     }
 
@@ -414,20 +413,4 @@ void removeCharacterFromTextBuffer(editorState* state) {
     }
 
     state->cursorPosition = state->textPosition;
-}
-
-int getTotalTextBufferLength(editorState* state) {
-    int length = 0;
-    int lineWidth = state->screenSize.X;
-
-    // Traverse textBuffer up to the cursor's position
-    for (int y = 0; y < state->textPosition.Y; y++) {
-        // Count full lines
-        length += lineWidth;
-    }
-
-    // Add characters from the current line (up to cursor X position)
-    length += state->textPosition.X;
-
-    return length;
 }
