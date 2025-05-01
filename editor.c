@@ -214,6 +214,9 @@ int* findUpdatedIndices(editorState* state, int* numFound) {
 */
 void updateScreenBuffer(editorState* state, int* foundIndices, int numFound) {
     for (int i = 0; i < numFound; i++) {
+        if (state->textBuffer[foundIndices[i]] == '\n') {
+            continue;
+        }
         state->screenBuffer[foundIndices[i]] = state->textBuffer[foundIndices[i]];
     } 
 }
@@ -366,51 +369,113 @@ void insertCharacterToTextBuffer(editorState* state, char c) {
         state->textBuffer = (char*)resizeBuffer(state->textBuffer, &state->textSize, sizeof(char), state);
     }
 
-    if (c == '\n') {
-        state->textLength++;
+    memmove(&state->textBuffer[index + 1], &state->textBuffer[index], state->textLength - index);
+    state->textBuffer[index] = c;
+    state->textLength++;
+
+    if (c == '\n' || state->textPosition.X >= lineWidth) {
         state->linePositions[state->textPosition.Y] = state->textPosition.X;
         state->textPosition.X = 0;
         state->textPosition.Y++;
     } else {
-        for (int i = state->textLength; i > index; i--) {
-            state->textBuffer[i] = state->textBuffer[i - 1];
-        }
-
-        state->textBuffer[index] = c;
-        state->textLength++;
         state->textPosition.X++;
-    
-        if (state->textPosition.X >= lineWidth) {
-            state->linePositions[state->textPosition.Y] = state->textPosition.X;
-            state->textPosition.X = 0;
-            state->textPosition.Y++;
-        }
     }
-    
+
     state->cursorPosition = state->textPosition;
 }
 
 void removeCharacterFromTextBuffer(editorState* state) {
-    if (state->textLength == 0 || (state->cursorPosition.X == 0 && state->cursorPosition.Y == 0)) {
-        return;
-    }
 
-    int lineWidth = state->screenSize.X;
-    int index = state->textPosition.Y * lineWidth + state->textPosition.X;
-
-    for (int i = index; i < state->textLength; i++) {
-        state->textBuffer[i] = state->textBuffer[i + 1];
-    }
-
-    state->textLength--;
-    state->textBuffer[state->textLength] = '\0';
-    
-    if (state->textPosition.X > 0) {
-        state->textPosition.X--;
-    } else {
-        state->textPosition.Y--;
-        state->textPosition.X = state->linePositions[state->textPosition.Y];
-    }
-
-    state->cursorPosition = state->textPosition;
 }
+
+// void insertCharacterToTextBuffer(editorState* state, char c) {
+//     int lineWidth = state->screenSize.X;
+//     int index = state->textPosition.Y * lineWidth + state->textPosition.X;
+
+//     if (state->textLength + 1 >= state->textSize || index + 1 >= state->textSize) {
+//         state->textBuffer = (char*)resizeBuffer(state->textBuffer, &state->textSize, sizeof(char), state);
+//     }
+
+//     for (int i = state->textLength; i > index; i--) {
+//         state->textBuffer[i] = state->textBuffer[i - 1];
+//     }
+//     state->textBuffer[index] = c;
+//     state->textLength++;
+
+//     if (c == '\n' || state->textPosition.X >= lineWidth) {
+//         state->linePositions[state->textPosition.Y] = state->textPosition.X;
+//         state->textPosition.X = 0;
+//         state->textPosition.Y++;
+//     } else {
+//         state->textPosition.X++;
+//     }
+
+//     // if (c == '\n') {
+//     //     state->textLength++;
+//     //     state->linePositions[state->textPosition.Y] = state->textPosition.X;
+//     //     state->textPosition.X = 0;
+//     //     state->textPosition.Y++;
+//     // } else {
+//     //     for (int i = state->textLength; i > index; i--) {
+//     //         state->textBuffer[i] = state->textBuffer[i - 1];
+//     //     }
+
+//     //     state->textBuffer[index] = c;
+//     //     state->textLength++;
+//     //     state->textPosition.X++;
+    
+//     //     if (state->textPosition.X >= lineWidth) {
+//     //         state->linePositions[state->textPosition.Y] = state->textPosition.X;
+//     //         state->textPosition.X = 0;
+//     //         state->textPosition.Y++;
+//     //     }
+//     // }
+    
+//     state->cursorPosition = state->textPosition;
+// }
+
+// void removeCharacterFromTextBuffer(editorState* state) {
+//     int lineWidth = state->screenSize.X;
+//     //int index = state->textPosition.Y * lineWidth + state->textPosition.X;
+//     int index = getTextBufferIndexFromCursor(state);
+
+//     if (index < 0 || state->textLength == 0 || (state->cursorPosition.X == 0 && state->cursorPosition.Y == 0)) {
+//         return;
+//     } 
+
+//     for (int i = index; i < state->textLength - 1; i++) {
+//         state->textBuffer[i] = state->textBuffer[i + 1];
+//     }
+
+//     state->textLength--;
+//     state->textBuffer[state->textLength] = '\0';
+    
+//     if (state->textPosition.X > 0) {
+//         state->textPosition.X--;
+//     } else {
+//         state->textPosition.Y--;
+//         state->textPosition.X = state->linePositions[state->textPosition.Y];
+//     }
+
+//     state->cursorPosition = state->textPosition;
+// }
+
+// int getTextBufferIndexFromCursor(editorState* state) {
+//     int x = 0;
+//     int y = 0;
+
+//     for (int i = 0; i < state->textLength; i++) {
+//         if (x == state->textPosition.X && y == state->textPosition.Y) {
+//             return i;
+//         }
+
+//         if (state->textBuffer[i] == '\n' || x >= state->screenSize.X) {
+//             x = 0;
+//             y++;
+//         } else {
+//             x++;
+//         }
+//     }
+
+//     //return -1; // Cursor is past the end of current visual buffer
+// }

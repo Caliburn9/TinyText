@@ -56,4 +56,6 @@ void insertCharacterToTextBuffer(editorState* state, char c);
 
 void removeCharacterFromTextBuffer(editorState* state);
 
+int getTextBufferIndexFromCursor(editorState* state);
+
 #endif
