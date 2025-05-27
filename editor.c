@@ -363,7 +363,7 @@ void* resizeBuffer(void* buffer, size_t* currentSize, size_t elementSize, editor
 
 void insertCharacterToTextBuffer(editorState* state, char c) {
     int lineWidth = state->screenSize.X;
-    int index = state->textPosition.Y * lineWidth + state->textPosition.X;
+    int index = getTextBufferIndexFromCursor(state);
 
     if (state->textLength + 1 >= state->textSize || index + 1 >= state->textSize) {
         state->textBuffer = (char*)resizeBuffer(state->textBuffer, &state->textSize, sizeof(char), state);
@@ -460,22 +460,22 @@ void removeCharacterFromTextBuffer(editorState* state) {
 //     state->cursorPosition = state->textPosition;
 // }
 
-// int getTextBufferIndexFromCursor(editorState* state) {
-//     int x = 0;
-//     int y = 0;
+int getTextBufferIndexFromCursor(editorState* state) {
+    int x = 0;
+    int y = 0;
 
-//     for (int i = 0; i < state->textLength; i++) {
-//         if (x == state->textPosition.X && y == state->textPosition.Y) {
-//             return i;
-//         }
+    for (int i = 0; i < state->textLength; i++) {
+        if (x == state->textPosition.X && y == state->textPosition.Y) {
+            return i;
+        }
 
-//         if (state->textBuffer[i] == '\n' || x >= state->screenSize.X) {
-//             x = 0;
-//             y++;
-//         } else {
-//             x++;
-//         }
-//     }
+        if (state->textBuffer[i] == '\n' || x >= state->screenSize.X) {
+            x = 0;
+            y++;
+        } else {
+            x++;
+        }
+    }
 
-//     //return -1; // Cursor is past the end of current visual buffer
-// }
+    //return -1; // Cursor is past the end of current visual buffer
+}
